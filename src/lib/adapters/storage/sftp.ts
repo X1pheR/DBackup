@@ -8,7 +8,6 @@ import {
     PrunedDirectory,
 } from "@/lib/core/interfaces";
 import { normalizeSshPrivateKey } from "@/lib/transport/pkcs8-compat";
-import { createConnectionPool } from "@/lib/adapters/storage/common/connection-pool";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { canPruneDirectory } from "@/lib/exclude-patterns";
 import { SFTPSchema } from "@/lib/adapters/definitions";
@@ -167,12 +166,6 @@ export async function endSftpClient(sftp: Client): Promise<void> {
         const raw = (sftp as unknown as { client?: { destroy?: () => void } }).client;
         try { raw?.destroy?.(); } catch { /* already gone */ }
     }
-}
-
-/** A pooled connection plus whether it is still usable, kept together so the pool can check it. */
-interface PooledClient {
-    client: Client;
-    alive: boolean;
 }
 
 /** How many sibling names to name in a diagnostic - enough to recognise the place, short enough to read. */
@@ -518,7 +511,6 @@ async function walkSftpTree(
     const prefix = config.pathPrefix ? normalize(config.pathPrefix) : "";
     const startDir = prefix ? path.posix.join(prefix, dir) : (dir || ".");
     const requestedConcurrency = Math.max(1, options?.concurrency ?? 1);
-    const limit = SOURCE_CONNECTION_LIMIT;
 
     if (requestedConcurrency > SOURCE_CONNECTION_LIMIT) {
         log.debug("SFTP source collection using bounded connection policy", {
@@ -533,25 +525,13 @@ async function walkSftpTree(
     const unsupportedSymlinks: string[] = [];
     let directoriesRead = 0;
 
-    const pool = createConnectionPool<PooledClient>({
-        limit,
-        connect: async () => {
-            const entry: PooledClient = { client: null as unknown as Client, alive: true };
-            entry.client = await connectSFTPForSource(
-                config,
-                "directory collection",
-                () => { entry.alive = false; }
-            );
-            return entry;
-        },
-        disconnect: async (entry) => { await endSftpClient(entry.client); },
-        isAlive: (entry) => entry.alive,
-    });
+    let client: Client | null = null;
 
     try {
         options?.signal?.throwIfAborted();
+        client = await connectSFTPForSource(config, "directory collection");
 
-        const exists = await pool.withConnection(({ client }) => client.exists(startDir));
+        const exists = await client.exists(startDir);
         if (exists !== 'd') return { files, pruned };
 
         /** Path relative to the adapter's configured root, the convention `list()` also uses. */
@@ -566,11 +546,11 @@ async function walkSftpTree(
         let frontier: string[] = [""];
 
         while (frontier.length > 0) {
-            const next = await mapWithConcurrency(frontier, limit, async (relDir): Promise<string[]> => {
+            const next = await mapWithConcurrency(frontier, requestedConcurrency, async (relDir): Promise<string[]> => {
                 options?.signal?.throwIfAborted();
 
                 const currentDir = relDir ? path.posix.join(startDir, relDir) : startDir;
-                const items = await pool.withConnection(({ client }) => client.list(currentDir));
+                const items = await client!.list(currentDir);
                 const children: string[] = [];
 
                 for (const item of items) {
@@ -590,8 +570,10 @@ async function walkSftpTree(
                         // Stored as a link and not followed, whether it points at a file or a
                         // directory. Descending would copy the target's bytes under the link's
                         // path, which is a different tree than the one being backed up.
-                        const target = await pool.withConnection(({ client }) =>
-                            readSftpLinkTarget(client, fullPath, (item as { longname?: string }).longname)
+                        const target = await readSftpLinkTarget(
+                            client!,
+                            fullPath,
+                            (item as { longname?: string }).longname
                         );
                         if (target === undefined) {
                             unsupportedSymlinks.push(childRel);
@@ -634,7 +616,7 @@ async function walkSftpTree(
         log.error("SFTP tree walk failed", { host: config.host, dir }, wrapError(error));
         throw error;
     } finally {
-        await pool.close();
+        if (client) await endSftpClient(client);
     }
 }
 
@@ -660,31 +642,17 @@ export const SFTPAdapter: StorageAdapter = {
         // the client afterwards: the default has to be "usable", so that a future library change
         // cannot silently turn pooling off by making every connection look dead.
         const requestedConcurrency = Math.max(1, options?.concurrency ?? 1);
-        const pool = createConnectionPool<PooledClient>({
-            limit: SOURCE_CONNECTION_LIMIT,
-            connect: async () => {
-                const entry: PooledClient = { client: null as unknown as Client, alive: true };
-                entry.client = await connectSFTPForSource(
-                    config,
-                    "transfer session",
-                    () => { entry.alive = false; }
-                );
-                return entry;
-            },
-            disconnect: async (entry) => { await endSftpClient(entry.client); },
-            isAlive: (entry) => entry.alive,
-        });
-
-        // Opened right away rather than on the first transfer, so bad credentials or an
-        // unreachable host fail here - where the caller can report one clear error - instead of
-        // separately for every file. The remaining connections are opened only if the transfers
-        // actually run in parallel.
-        try {
-            await pool.withConnection(async () => undefined);
-        } catch (error) {
-            await pool.close();
-            throw error;
-        }
+        let alive = true;
+        let closed = false;
+        const client = await connectSFTPForSource(
+            config,
+            "transfer session",
+            () => { alive = false; }
+        );
+        const activeClient = (): Client => {
+            if (closed || !alive) throw new Error("SFTP source connection is no longer available");
+            return client;
+        };
 
         // Announced once for the session rather than once per connection. How many sockets a
         // pool ends up opening is an implementation detail, and printing a line for each buried
@@ -700,17 +668,29 @@ export const SFTPAdapter: StorageAdapter = {
             );
         }
 
-        // Shared across the pool, not per connection: which directories exist is a property of
+        // Shared across every multiplexed operation: which directories exist is a property of
         // the server, so one file's mkdir spares every other file the same check.
         const dirCache = new Set<string>();
 
         return {
             upload: (localPath, remotePath, onProgress, uploadLog) =>
-                pool.withConnection(({ client }) =>
-                    performSftpUpload(client, config, localPath, remotePath, onProgress, uploadLog ?? onLog, dirCache)),
+                performSftpUpload(
+                    activeClient(),
+                    config,
+                    localPath,
+                    remotePath,
+                    onProgress,
+                    uploadLog ?? onLog,
+                    dirCache
+                ),
             download: (remotePath, localPath, onProgress) =>
-                pool.withConnection(({ client }) => performSftpDownload(client, config, remotePath, localPath, onProgress)),
-            close: () => pool.close(),
+                performSftpDownload(activeClient(), config, remotePath, localPath, onProgress),
+            close: async () => {
+                if (closed) return;
+                closed = true;
+                alive = false;
+                await endSftpClient(client);
+            },
         };
     },
 
