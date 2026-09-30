@@ -44,26 +44,76 @@ function createClient(config: SMBConfig): SambaClient {
 }
 
 /**
- * Joins the pathPrefix with a relative path using forward slashes.
+ * Normalize one SMB path fragment without allowing it to escape the configured
+ * destination root. DBackup-generated storage paths are always relative.
  */
-function resolvePath(config: SMBConfig, relativePath: string): string {
-    if (config.pathPrefix) {
-        return config.pathPrefix.replace(/\\/g, "/") + "/" + relativePath.replace(/\\/g, "/");
+function normalizeRelativeSmbPath(value: string, label: string): string {
+    const normalized = value.replace(/\\/g, "/");
+    if (normalized.startsWith("/")) {
+        throw new Error(`${label} must be relative to the configured SMB destination root`);
     }
-    return relativePath.replace(/\\/g, "/");
+
+    const parts = normalized.split("/").filter((part) => part !== "" && part !== ".");
+    if (parts.some((part) => part === "..")) {
+        throw new Error(`${label} must stay within the configured SMB destination root`);
+    }
+    return parts.join("/");
 }
 
 /**
- * Ensures the parent directory of the given remote path exists.
+ * Joins pathPrefix with a destination-relative path while preserving the
+ * configured destination root as the containment boundary.
  */
-async function ensureDir(client: SambaClient, remotePath: string): Promise<void> {
+function resolvePath(config: SMBConfig, relativePath: string): string {
+    const prefix = normalizeRelativeSmbPath(config.pathPrefix ?? "", "SMB pathPrefix");
+    const relative = normalizeRelativeSmbPath(relativePath, "SMB relative path");
+    return prefix ? (relative ? `${prefix}/${relative}` : prefix) : relative;
+}
+
+function isDirectoryAlreadyExistsError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes("NT_STATUS_OBJECT_NAME_COLLISION")
+        || message.includes("already exists")
+        || message.includes("File exists");
+}
+
+/**
+ * Ensures every missing parent below the configured destination root exists.
+ * The configured pathPrefix itself is treated as the pre-existing root and is
+ * never created or traversed above.
+ */
+async function ensureDir(
+    client: SambaClient,
+    config: SMBConfig,
+    remotePath: string,
+    dirCache: Set<string>
+): Promise<void> {
+    const root = normalizeRelativeSmbPath(config.pathPrefix ?? "", "SMB pathPrefix");
     const dir = path.posix.dirname(remotePath);
-    if (dir && dir !== "." && dir !== "/") {
+    if (!dir || dir === "." || dir === "/") return;
+
+    if (root && dir !== root && !dir.startsWith(root + "/")) {
+        throw new Error(`SMB destination parent escapes configured root: ${dir}`);
+    }
+
+    const relativeDir = root
+        ? (dir === root ? "" : dir.slice(root.length + 1))
+        : dir;
+    if (!relativeDir) return;
+
+    let current = root;
+    for (const segment of relativeDir.split("/").filter(Boolean)) {
+        current = current ? `${current}/${segment}` : segment;
+        if (dirCache.has(current)) continue;
         try {
-            await client.mkdir(dir, "/");
-        } catch {
-            // Directory may already exist, ignore errors
+            await client.mkdir(current, "/");
+        } catch (error: unknown) {
+            if (!isDirectoryAlreadyExistsError(error)) {
+                const message = error instanceof Error ? error.message : String(error);
+                throw new Error(`Failed to create SMB directory '${current}': ${message}`);
+            }
         }
+        dirCache.add(current);
     }
 }
 
@@ -91,8 +141,7 @@ async function performSmbUpload(
         const dir = path.posix.dirname(destination);
 
         if (!dirCache.has(dir)) {
-            await ensureDir(client, destination);
-            dirCache.add(dir);
+            await ensureDir(client, config, destination, dirCache);
         }
 
         if (onLog) onLog(`Starting SMB upload to: ${destination}`, "info", "storage");
