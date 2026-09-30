@@ -8,6 +8,9 @@
   <strong>Self-hosted backup automation for databases and files, with encryption, compression, and smart retention.</strong>
 </p>
 
+> [!IMPORTANT]
+> This repository is a community-maintained downstream of [Skyfay/DBackup](https://github.com/Skyfay/DBackup), based on upstream `v3.4.0`. It carries narrowly scoped Hypershell fixes and is not an official Skyfay release. Downstream releases use the `-x1pher.N` suffix; use upstream DBackup documentation unless a downstream release note says otherwise.
+
 <p align="center">
 
 </p>

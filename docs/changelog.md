@@ -2,6 +2,25 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.1 - Hypershell SMB Destination Parent Creation
+
+*Released: Sep 29, 2026*
+
+### 🐛 Bug Fixes
+
+- **SMB destinations**: Create missing destination-relative job and chain parent directories recursively and idempotently before uploading backup metadata, archive indexes, and archives.
+- **SMB path safety**: Reject absolute or parent-traversal destination paths before any directory creation and propagate non-collision `mkdir` errors with the exact failing destination-relative parent.
+
+### 🧪 Tests
+
+- **SMB adapter**: Added focused regression coverage for recursive parents, idempotent existing directories, bounded error propagation, and destination-root containment.
+
+### 🐳 Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.1`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
 ## v3.4.0 - Single Database Restores and Downloads, Data Retention Improvement, and Bug Fixes
 
 *Released: Sep 16, 2026*
@@ -2221,4 +2240,3 @@ All notable changes to DBackup are documented here.
 - **backup**: Pipeline architecture - job runner refactored into modular steps with dedicated service layer
 - **queue**: Max 10 concurrent jobs with optimized MySQL/PostgreSQL streaming
 - **ui**: DataTables with faceted filtering, Command-based Popovers, and Recovery Kit card UI
-

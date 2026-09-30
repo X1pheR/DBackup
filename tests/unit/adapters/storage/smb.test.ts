@@ -92,6 +92,78 @@ describe("SMBAdapter", () => {
             expect(mockMkdir).toHaveBeenCalled();
         });
 
+        it("creates missing nested parents one level at a time below pathPrefix", async () => {
+            const result = await SMBAdapter.upload(
+                config,
+                "/tmp/backup.tar",
+                "Job/chain-2026-09-29/archive.tar"
+            );
+
+            expect(result).toBe(true);
+            expect(mockMkdir.mock.calls.map(([remotePath]) => remotePath)).toEqual([
+                "backups/Job",
+                "backups/Job/chain-2026-09-29",
+            ]);
+            expect(mockSendFile).toHaveBeenCalledWith(
+                "/tmp/backup.tar",
+                "backups/Job/chain-2026-09-29/archive.tar"
+            );
+        });
+
+        it("treats existing nested parents as idempotent collisions", async () => {
+            mockMkdir.mockRejectedValue(new Error("NT_STATUS_OBJECT_NAME_COLLISION"));
+
+            const result = await SMBAdapter.upload(
+                config,
+                "/tmp/backup.tar",
+                "Job/chain-existing/archive.tar"
+            );
+
+            expect(result).toBe(true);
+            expect(mockMkdir).toHaveBeenCalledTimes(2);
+            expect(mockSendFile).toHaveBeenCalledOnce();
+        });
+
+        it("fails at the exact nested parent step instead of hiding mkdir errors", async () => {
+            mockMkdir
+                .mockResolvedValueOnce(undefined)
+                .mockRejectedValueOnce(new Error("NT_STATUS_ACCESS_DENIED"));
+            const onLog = vi.fn();
+
+            const result = await SMBAdapter.upload(
+                config,
+                "/tmp/backup.tar",
+                "Job/chain-denied/archive.tar",
+                undefined,
+                onLog
+            );
+
+            expect(result).toBe(false);
+            expect(mockMkdir.mock.calls.map(([remotePath]) => remotePath)).toEqual([
+                "backups/Job",
+                "backups/Job/chain-denied",
+            ]);
+            expect(mockSendFile).not.toHaveBeenCalled();
+            expect(onLog).toHaveBeenCalledWith(
+                expect.stringContaining("backups/Job/chain-denied"),
+                "error",
+                "storage",
+                expect.anything()
+            );
+        });
+
+        it("rejects traversal outside pathPrefix before mkdir or upload", async () => {
+            const result = await SMBAdapter.upload(
+                config,
+                "/tmp/backup.tar",
+                "../outside/archive.tar"
+            );
+
+            expect(result).toBe(false);
+            expect(mockMkdir).not.toHaveBeenCalled();
+            expect(mockSendFile).not.toHaveBeenCalled();
+        });
+
         it("returns false when sendFile throws", async () => {
             mockSendFile.mockRejectedValue(new Error("Access denied"));
 
