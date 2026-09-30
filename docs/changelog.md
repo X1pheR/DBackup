@@ -2,6 +2,25 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.2 - Hypershell Bounded SFTP Collection
+
+*Released: Sep 30, 2026*
+
+### 🐛 Bug Fixes
+
+- **SFTP source collection**: Reuse a single SSH/SFTP connection for directory collection and transfer sessions even when higher file concurrency is requested, preventing parallel handshake storms on remote sources.
+- **SFTP handshake recovery**: Retry one transient handshake timeout or connection reset, then fail boundedly without creating duplicate backup executions.
+
+### 🧪 Tests
+
+- **SFTP adapter**: Added regression coverage for single-connection directory walks, reusable transfer sessions, one transient retry, and persistent-failure bounds.
+
+### 🐳 Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.2`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
 ## v3.4.0-x1pher.1 - Hypershell SMB Destination Parent Creation
 
 *Released: Sep 29, 2026*

@@ -168,6 +168,20 @@ describe("SFTPAdapter.listTree", () => {
         expect(mockSftpConnect).toHaveBeenCalledTimes(1);
         expect(mockSftpEnd).toHaveBeenCalledTimes(1);
     });
+
+    it("keeps a concurrent directory walk on one reusable SSH connection", async () => {
+        mockSftpExists.mockResolvedValue("d");
+        mockSftpList.mockImplementation(async (remotePath: string) => {
+            if (remotePath === ".") return [dir("one"), dir("two"), dir("three")];
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            return [file(`${remotePath}.txt`)];
+        });
+
+        await SFTPAdapter.listTree!(config, "", { concurrency: 8 });
+
+        expect(mockSftpConnect).toHaveBeenCalledTimes(1);
+        expect(mockSftpEnd).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe("connectSFTP", () => {
