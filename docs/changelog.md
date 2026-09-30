@@ -2,6 +2,25 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.3 - Hypershell Multiplexed SFTP Collection
+
+*Released: Sep 30, 2026*
+
+### ⚡ Improvements
+
+- **SFTP source collection**: Preserve the single reusable SSH/SFTP connection introduced in x1pher.2 while allowing concurrent directory and file operations to multiplex over that one connection.
+- **SFTP throughput**: Requested file concurrency now controls SFTP operations rather than SSH handshake count, avoiding handshake storms without serializing every file.
+
+### 🧪 Tests
+
+- **SFTP adapter**: Added regression coverage proving parallel downloads overlap while connect() is still called exactly once.
+
+### 🐳 Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.3`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
 ## v3.4.0-x1pher.2 - Hypershell Bounded SFTP Collection
 
 *Released: Sep 30, 2026*
