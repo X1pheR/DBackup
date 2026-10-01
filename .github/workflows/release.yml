@@ -199,5 +199,6 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.preflight.outputs.tag }}
           body_path: release_notes.md
           prerelease: false
