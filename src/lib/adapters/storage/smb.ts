@@ -292,11 +292,15 @@ export const SMBAdapter: StorageAdapter = {
                     // For root listing (empty currentDir), "*" lists everything in the share root.
                     const listPath = currentDir ? currentDir + "/*" : "*";
                     items = await client.list(listPath);
-                    if (items.length === 0) {
-                        const raw = await client.dir(listPath);
-                        const rawText = typeof raw === "string" ? raw : raw.toString("utf8");
-                        const recovered = parseRawSmbDirectory(rawText);
-                        if (recovered.length > 0) items = recovered;
+                    // The library may return dot entries and short sidecars while dropping
+                    // long archive filenames. Merge raw rows even for non-empty listings.
+                    const raw = await client.dir(listPath);
+                    const rawText = typeof raw === "string" ? raw : raw.toString("utf8");
+                    const recovered = parseRawSmbDirectory(rawText);
+                    if (recovered.length > 0) {
+                        const merged = new Map(items.map((item) => [item.name, item]));
+                        for (const item of recovered) merged.set(item.name, item);
+                        items = Array.from(merged.values());
                     }
                 } catch (error: unknown) {
                     const safe = sanitizeSmbError(error, config.password);

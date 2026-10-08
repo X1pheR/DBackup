@@ -74,6 +74,7 @@ describe("SMBAdapter", () => {
         mockMkdir.mockResolvedValue(undefined);
         mockDeleteFile.mockResolvedValue(undefined);
         mockDir.mockReset();
+        mockDir.mockResolvedValue("");
         mockFsReadFile.mockResolvedValue("smb file content");
         mockFsWriteFile.mockResolvedValue(undefined);
         mockFsUnlink.mockResolvedValue(undefined);
@@ -301,6 +302,26 @@ describe("SMBAdapter", () => {
                 name: "Home_Critical_Files_2026-10-08_17-43-41_full-000.tar",
                 size: 2580549120,
             });
+        });
+
+        it("recovers long archive names even when samba-client returns only dot entries or short names", async () => {
+            mockList.mockResolvedValue([
+                { name: ".", type: "D", size: 0, modifyTime: new Date() },
+                { name: "..", type: "D", size: 0, modifyTime: new Date() },
+                { name: "short.index", type: "A", size: 100, modifyTime: new Date() },
+            ]);
+            mockDir.mockResolvedValue(
+                "  . D 0  Thu Oct  8 17:52:10 2026\n" +
+                "  .. D 0  Thu Oct  8 17:52:10 2026\n" +
+                "  short.index A 100  Thu Oct  8 17:52:10 2026\n" +
+                "  Home_Critical_Files_2026-10-08_17-43-41_full-000.tar A 2580549120  Thu Oct  8 17:52:10 2026\n"
+            );
+
+            const result = await SMBAdapter.list(config, "Home Critical Files/chain-2026-10-08");
+            expect(result.map((item) => item.name)).toEqual([
+                "short.index",
+                "Home_Critical_Files_2026-10-08_17-43-41_full-000.tar",
+            ]);
         });
 
         it("throws when root directory listing fails", async () => {
