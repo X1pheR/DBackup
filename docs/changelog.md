@@ -2,6 +2,25 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.4 - Hypershell SMB Retention Discovery Safety
+
+*Released: Oct 8, 2026*
+
+### 🐛 Bug Fixes
+
+- **SMB retention discovery**: Recursive SMB listing now fails closed when any subdirectory cannot be enumerated instead of silently returning a partial backup inventory. This prevents retention and Storage Explorer from treating an incomplete scan as if no backups exist.
+
+### 🧪 Tests
+
+- **SMB adapter**: Added regression coverage proving recursive subdirectory list failures are propagated rather than skipped.
+
+### 🐳 Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.4`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
+
 ## v3.4.0-x1pher.3 - Hypershell Multiplexed SFTP Collection
 
 *Released: Sep 30, 2026*
