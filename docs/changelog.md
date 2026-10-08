@@ -2,6 +2,25 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.7 - Complete SMB Backup Enumeration
+
+*Released: Oct 8, 2026*
+
+### Bug Fixes
+
+- **SMB retention discovery**: Merge parsed raw SMB rows with partial library listings. Long backup archive names no longer disappear when the SMB library still returns dot entries or short sidecars.
+
+### Tests
+
+- **SMB adapter**: Cover a partially parsed directory containing dot entries, a short file, and a long backup archive name.
+
+### Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.7`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
+
 ## v3.4.0-x1pher.6 - Hypershell Long SMB Filename Discovery
 
 *Released: Oct 8, 2026*
