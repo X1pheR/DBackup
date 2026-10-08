@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "name": "DBackup",
+  "category": "Operations",
+  "kind": "application",
+  "upstream": {
+    "repository": "Skyfay/DBackup",
+    "reason": "Carries bounded fixes required by the maintained Hypershell deployment that are not currently available upstream."
+  }
+}
