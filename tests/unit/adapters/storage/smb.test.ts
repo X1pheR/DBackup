@@ -2,10 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SMBAdapter } from "@/lib/adapters/storage/smb";
 
 // --- Hoisted mocks ---
-const { mockSendFile, mockGetFile, mockList, mockMkdir, mockDeleteFile, mockFsReadFile, mockFsWriteFile, mockFsUnlink, mockSambaCtorShouldThrow } = vi.hoisted(() => ({
+const { mockSendFile, mockGetFile, mockList, mockDir, mockMkdir, mockDeleteFile, mockFsReadFile, mockFsWriteFile, mockFsUnlink, mockSambaCtorShouldThrow } = vi.hoisted(() => ({
     mockSendFile: vi.fn().mockResolvedValue(undefined),
     mockGetFile: vi.fn().mockResolvedValue(undefined),
     mockList: vi.fn(),
+    mockDir: vi.fn(),
     mockMkdir: vi.fn().mockResolvedValue(undefined),
     mockDeleteFile: vi.fn().mockResolvedValue(undefined),
     mockFsReadFile: vi.fn().mockResolvedValue("smb file content"),
@@ -24,6 +25,7 @@ vi.mock("samba-client", () => {
         sendFile = mockSendFile;
         getFile = mockGetFile;
         list = mockList;
+        dir = mockDir;
         mkdir = mockMkdir;
         deleteFile = mockDeleteFile;
     }
@@ -71,6 +73,7 @@ describe("SMBAdapter", () => {
         mockGetFile.mockResolvedValue(undefined);
         mockMkdir.mockResolvedValue(undefined);
         mockDeleteFile.mockResolvedValue(undefined);
+        mockDir.mockReset();
         mockFsReadFile.mockResolvedValue("smb file content");
         mockFsWriteFile.mockResolvedValue(undefined);
         mockFsUnlink.mockResolvedValue(undefined);
@@ -283,6 +286,21 @@ describe("SMBAdapter", () => {
             const result = await SMBAdapter.list(config, "Job");
 
             expect(result[0].path).not.toContain("backups/");
+        });
+
+        it("recovers long backup filenames from raw smbclient output when samba-client list parsing returns empty", async () => {
+            mockList.mockResolvedValue([]);
+            mockDir.mockResolvedValue(
+                "  Home_Critical_Files_2026-10-08_17-43-41_full-000.tar A 2580549120  Thu Oct  8 17:52:10 2026\n"
+            );
+
+            const result = await SMBAdapter.list(config, "Home Critical Files/chain-2026-10-08");
+
+            expect(result).toHaveLength(1);
+            expect(result[0]).toMatchObject({
+                name: "Home_Critical_Files_2026-10-08_17-43-41_full-000.tar",
+                size: 2580549120,
+            });
         });
 
         it("throws when root directory listing fails", async () => {

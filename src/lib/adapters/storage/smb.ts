@@ -77,6 +77,30 @@ function isDirectoryAlreadyExistsError(error: unknown): boolean {
         || message.includes("File exists");
 }
 
+type SambaListEntry = { name: string; type: string; size: number; modifyTime: Date };
+
+/**
+ * samba-client 7.2.0 assumes at least six spaces between a filename and its
+ * DOS attributes. smbclient stops padding once a filename exceeds the display
+ * column, so long DBackup archive names can disappear from list(). Parse the
+ * same output with a right-hand shape that accepts one or more separators.
+ */
+function parseRawSmbDirectory(raw: string): SambaListEntry[] {
+    const entries: SambaListEntry[] = [];
+    const row = /^\s*(.+?)\s+([A-Z0-9]+)\s+(\d+)\s{2,}(.+?)\s*$/;
+    for (const line of raw.split(/\r?\n/)) {
+        const match = line.match(row);
+        if (!match) continue;
+        entries.push({
+            name: match[1],
+            type: match[2],
+            size: Number.parseInt(match[3], 10),
+            modifyTime: new Date(`${match[4]}Z`),
+        });
+    }
+    return entries;
+}
+
 /**
  * Ensures every missing parent below the configured destination root exists.
  * The configured pathPrefix itself is treated as the pre-existing root and is
@@ -268,6 +292,11 @@ export const SMBAdapter: StorageAdapter = {
                     // For root listing (empty currentDir), "*" lists everything in the share root.
                     const listPath = currentDir ? currentDir + "/*" : "*";
                     items = await client.list(listPath);
+                    if (items.length === 0) {
+                        const raw = await client.dir(listPath);
+                        const recovered = parseRawSmbDirectory(raw);
+                        if (recovered.length > 0) items = recovered;
+                    }
                 } catch (error: unknown) {
                     const safe = sanitizeSmbError(error, config.password);
                     throw new Error(`SMB list failed at '${currentDir || "."}': ${safe.message}`, { cause: safe });
