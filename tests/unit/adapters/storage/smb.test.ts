@@ -291,7 +291,7 @@ describe("SMBAdapter", () => {
             await expect(SMBAdapter.list(config, "Job")).rejects.toThrow("SMB connection error");
         });
 
-        it("continues when a subdirectory listing fails", async () => {
+        it("fails closed when a subdirectory listing fails", async () => {
             mockList
                 .mockResolvedValueOnce([
                     { name: "subdir", type: "D", size: 0, modifyTime: new Date() },
@@ -299,11 +299,7 @@ describe("SMBAdapter", () => {
                 ])
                 .mockRejectedValueOnce(new Error("Permission denied on subdir"));
 
-            const result = await SMBAdapter.list(config, "Job");
-
-            // The file at the root level is returned; the failed subdirectory is silently skipped.
-            expect(result).toHaveLength(1);
-            expect(result[0].name).toBe("backup.sql");
+            await expect(SMBAdapter.list(config, "Job")).rejects.toThrow("Permission denied on subdir");
         });
     });
 

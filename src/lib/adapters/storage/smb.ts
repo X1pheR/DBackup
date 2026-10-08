@@ -269,11 +269,8 @@ export const SMBAdapter: StorageAdapter = {
                     const listPath = currentDir ? currentDir + "/*" : "*";
                     items = await client.list(listPath);
                 } catch (error: unknown) {
-                    // Root directory listing failure means the share is unreachable or inaccessible.
-                    // Propagate to trigger the DB fallback in the stats cache.
-                    if (currentDir === startDir) throw sanitizeSmbError(error, config.password);
-                    // Sub-directory listing failure (e.g. permission denied on one folder): skip silently.
-                    return;
+                    const safe = sanitizeSmbError(error, config.password);
+                    throw new Error(`SMB list failed at '${currentDir || "."}': ${safe.message}`, { cause: safe });
                 }
 
                 for (const item of items) {
