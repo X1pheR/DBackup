@@ -293,9 +293,9 @@ export const SMBAdapter: StorageAdapter = {
                     const listPath = currentDir ? currentDir + "/*" : "*";
                     items = await client.list(listPath);
                     if (items.length === 0) {
-                        const rawClient = client as SambaClient & { dir(remotePath: string): Promise<string> };
-                        const raw = await rawClient.dir(listPath);
-                        const recovered = parseRawSmbDirectory(raw);
+                        const raw = await client.dir(listPath);
+                        const rawText = typeof raw === "string" ? raw : raw.toString("utf8");
+                        const recovered = parseRawSmbDirectory(rawText);
                         if (recovered.length > 0) items = recovered;
                     }
                 } catch (error: unknown) {
