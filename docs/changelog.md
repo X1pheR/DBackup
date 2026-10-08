@@ -2,9 +2,31 @@
 
 All notable changes to DBackup are documented here.
 
-## v3.4.0-x1pher.5 - Hypershell Long SMB Filename Discovery
+## v3.4.0-x1pher.6 - Hypershell Long SMB Filename Discovery
 
 *Released: Oct 8, 2026*
+
+### 🐛 Bug Fixes
+
+- **SMB backup discovery**: Includes the x1pher.5 long-filename recovery so retention and Storage Explorer can see long DBackup archive names on SMB destinations.
+- **Type correctness**: Normalize `samba-client` raw directory output from its declared `string | Buffer` result to UTF-8 text before parsing, restoring the hosted Type Check gate.
+
+### 🧪 Tests
+
+- **SMB adapter**: Focused suite passes 30/30.
+- **Full unit suite**: Local bounded verification passes 4,878/4,878 tests.
+- **Hosted validation**: Type Check, Lint and Docs passed on the type-fix candidate.
+
+### 🐳 Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.6`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
+
+## v3.4.0-x1pher.5 - Hypershell Long SMB Filename Discovery
+
+*Release validation failed on Type Check; no x1pher.5 image was published.*
 
 ### 🐛 Bug Fixes
 
