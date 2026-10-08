@@ -324,6 +324,14 @@ describe("SMBAdapter", () => {
             ]);
         });
 
+        it("quotes SMB patterns containing spaces for list and raw directory enumeration", async () => {
+            mockList.mockResolvedValue([]);
+            mockDir.mockResolvedValue("");
+            await SMBAdapter.list(config, "Home Critical Files/chain-2026-10-08");
+            expect(mockList).toHaveBeenCalledWith('"backups/Home Critical Files/chain-2026-10-08/*"');
+            expect(mockDir).toHaveBeenCalledWith('"backups/Home Critical Files/chain-2026-10-08/*"');
+        });
+
         it("throws when root directory listing fails", async () => {
             mockList.mockRejectedValue(new Error("SMB connection error"));
 
