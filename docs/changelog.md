@@ -2,6 +2,25 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.8 - Quote SMB Directory Paths
+
+*Released: Oct 9, 2026*
+
+### Bug Fixes
+
+- **SMB discovery**: Quote SMB listing globs to preserve directory names containing spaces, including `Home Critical Files`. Applies to the normal and raw SMB listings.
+
+### Tests
+
+- **SMB adapter**: Verify quoted listing paths with spaces.
+
+### Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.8`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
+
 ## v3.4.0-x1pher.7 - Complete SMB Backup Enumeration
 
 *Released: Oct 8, 2026*
