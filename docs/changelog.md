@@ -2,6 +2,25 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.10 - Mixed-case SMB Directory Attributes
+
+*Released: Oct 9, 2026*
+
+### Bug Fixes
+
+- **SMB retention discovery**: Parse mixed-case DOS attribute flags, including the observed `Dn` directory type, so recursive listing can find the existing backup chains.
+
+### Tests
+
+- **SMB adapter**: Regress against observed SMB `Dn` directory rows and nested long archive names.
+
+### Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.10`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
+
 ## v3.4.0-x1pher.9 - Scoped SMB Directory Enumeration
 
 *Released: Oct 9, 2026*
