@@ -337,6 +337,20 @@ describe("SMBAdapter", () => {
             expect(mockDir).toHaveBeenCalledWith("*");
         });
 
+        it("recovers lowercase SMB directory attributes and recursively discovers long archives", async () => {
+            mockList.mockResolvedValue([]);
+            mockDir.mockImplementation(async () => {
+                const last = mockDir.mock.calls.length;
+                return last === 1
+                    ? "  chain-2026-10-09T01-18-43-992      Dn        0  Fri Oct  9 03:18:47 2026\n"
+                    : "  Home_Critical_Files_2026-10-09_03-18-47_full-000.tar A 2580582400  Fri Oct  9 03:25:00 2026\n";
+            });
+            const files = await SMBAdapter.list(config, "Home Critical Files");
+            expect(files).toHaveLength(1);
+            expect(files[0].name).toBe("Home_Critical_Files_2026-10-09_03-18-47_full-000.tar");
+            expect(files[0].path).toContain("chain-2026-10-09T01-18-43-992");
+        });
+
         it("throws when root directory listing fails", async () => {
             mockList.mockRejectedValue(new Error("SMB connection error"));
 
