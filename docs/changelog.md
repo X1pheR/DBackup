@@ -2,6 +2,25 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.9 - Scoped SMB Directory Enumeration
+
+*Released: Oct 9, 2026*
+
+### Bug Fixes
+
+- **SMB listing**: Scope recursive enumeration to each SMB directory with the samba-client `directory` option and list its contents by `*`. Avoid double-quoting directory globs containing spaces.
+
+### Tests
+
+- **SMB adapter**: Validate remote directory scoping and directory listing arguments.
+
+### Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.9`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
+
 ## v3.4.0-x1pher.8 - Quote SMB Directory Paths
 
 *Released: Oct 9, 2026*
