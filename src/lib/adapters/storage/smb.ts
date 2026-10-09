@@ -291,10 +291,13 @@ export const SMBAdapter: StorageAdapter = {
                     // "dir folder" matches the entry itself, "dir folder/*" lists its contents.
                     // For root listing (empty currentDir), "*" lists everything in the share root.
                     const listPath = currentDir ? currentDir + "/*" : "*";
-                    items = await client.list(listPath);
+                    // samba-client passes dir() arguments as raw command text.
+                    // Quote the remote pattern so names containing spaces remain one SMB path.
+                    const quotedListPath = `"${listPath.replace(/"/g, '""')}"`;
+                    items = await client.list(quotedListPath);
                     // The library may return dot entries and short sidecars while dropping
                     // long archive filenames. Merge raw rows even for non-empty listings.
-                    const raw = await client.dir(listPath);
+                    const raw = await client.dir(quotedListPath);
                     const rawText = typeof raw === "string" ? raw : raw.toString("utf8");
                     const recovered = parseRawSmbDirectory(rawText);
                     if (recovered.length > 0) {
