@@ -88,7 +88,7 @@ type SambaListEntry = { name: string; type: string; size: number; modifyTime: Da
  */
 function parseRawSmbDirectory(raw: string): SambaListEntry[] {
     const entries: SambaListEntry[] = [];
-    const row = /^\s*(.+?)\s+([A-Z0-9]+)\s+(\d+)\s{2,}(.+?)\s*$/;
+    const row = /^\s*(.+?)\s+([A-Za-z0-9]+)\s+(\d+)\s{2,}(.+?)\s*$/;
     for (const line of raw.split(/\r?\n/)) {
         const match = line.match(row);
         if (!match) continue;
