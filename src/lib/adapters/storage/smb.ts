@@ -33,13 +33,14 @@ interface SMBConfig {
  * Creates a SambaClient instance with the given config.
  * The `directory` option is set to pathPrefix if provided.
  */
-function createClient(config: SMBConfig): SambaClient {
+function createClient(config: SMBConfig, directory?: string): SambaClient {
     return new SambaClient({
         address: config.address,
         username: config.username || "guest",
         password: config.password,
         domain: config.domain,
         maxProtocol: config.maxProtocol || "SMB3",
+        ...(directory ? { directory } : {}),
     });
 }
 
@@ -273,7 +274,6 @@ export const SMBAdapter: StorageAdapter = {
 
     async list(config: SMBConfig, dir: string = ""): Promise<FileInfo[]> {
         try {
-            const client = createClient(config);
 
             const normalize = (p: string) => p.replace(/\\/g, "/");
 
@@ -290,14 +290,14 @@ export const SMBAdapter: StorageAdapter = {
                     // smbclient's "dir" command requires a glob pattern to list directory contents.
                     // "dir folder" matches the entry itself, "dir folder/*" lists its contents.
                     // For root listing (empty currentDir), "*" lists everything in the share root.
-                    const listPath = currentDir ? currentDir + "/*" : "*";
-                    // samba-client passes dir() arguments as raw command text.
-                    // Quote the remote pattern so names containing spaces remain one SMB path.
-                    const quotedListPath = `"${listPath.replace(/"/g, '""')}"`;
-                    items = await client.list(quotedListPath);
+                    // Use the SMB client's -D directory option to scope the listing.
+                    // The library already quotes the dir() pattern; including the whole
+                    // parent path in that pattern can misparse directories with spaces.
+                    const client = createClient(config, currentDir);
+                    items = await client.list("*");
                     // The library may return dot entries and short sidecars while dropping
                     // long archive filenames. Merge raw rows even for non-empty listings.
-                    const raw = await client.dir(quotedListPath);
+                    const raw = await client.dir("*");
                     const rawText = typeof raw === "string" ? raw : raw.toString("utf8");
                     const recovered = parseRawSmbDirectory(rawText);
                     if (recovered.length > 0) {
