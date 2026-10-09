@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SMBAdapter } from "@/lib/adapters/storage/smb";
 
 // --- Hoisted mocks ---
-const { mockSendFile, mockGetFile, mockList, mockDir, mockMkdir, mockDeleteFile, mockFsReadFile, mockFsWriteFile, mockFsUnlink, mockSambaCtorShouldThrow } = vi.hoisted(() => ({
+const { mockSendFile, mockGetFile, mockList, mockDir, mockMkdir, mockDeleteFile, mockFsReadFile, mockFsWriteFile, mockFsUnlink, mockSambaCtorShouldThrow, mockCtorOptions } = vi.hoisted(() => ({
     mockSendFile: vi.fn().mockResolvedValue(undefined),
     mockGetFile: vi.fn().mockResolvedValue(undefined),
     mockList: vi.fn(),
@@ -13,11 +13,13 @@ const { mockSendFile, mockGetFile, mockList, mockDir, mockMkdir, mockDeleteFile,
     mockFsWriteFile: vi.fn().mockResolvedValue(undefined),
     mockFsUnlink: vi.fn().mockResolvedValue(undefined),
     mockSambaCtorShouldThrow: { value: false },
+    mockCtorOptions: vi.fn(),
 }));
 
 vi.mock("samba-client", () => {
     class MockSambaClient {
-        constructor() {
+        constructor(options: unknown) {
+            mockCtorOptions(options);
             if (mockSambaCtorShouldThrow.value) {
                 throw new Error("SambaClient constructor failed");
             }
@@ -328,8 +330,11 @@ describe("SMBAdapter", () => {
             mockList.mockResolvedValue([]);
             mockDir.mockResolvedValue("");
             await SMBAdapter.list(config, "Home Critical Files/chain-2026-10-08");
-            expect(mockList).toHaveBeenCalledWith('"backups/Home Critical Files/chain-2026-10-08/*"');
-            expect(mockDir).toHaveBeenCalledWith('"backups/Home Critical Files/chain-2026-10-08/*"');
+            expect(mockCtorOptions).toHaveBeenCalledWith(expect.objectContaining({
+                directory: "backups/Home Critical Files/chain-2026-10-08",
+            }));
+            expect(mockList).toHaveBeenCalledWith("*");
+            expect(mockDir).toHaveBeenCalledWith("*");
         });
 
         it("throws when root directory listing fails", async () => {
