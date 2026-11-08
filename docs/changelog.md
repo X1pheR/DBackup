@@ -2,6 +2,26 @@
 
 All notable changes to DBackup are documented here.
 
+## v3.4.0-x1pher.11 - Fail-Closed Incremental Retention
+
+*Release: November 8, 2026*
+
+### Recovery Safety
+
+- **Incremental retention**: Refuse archive pruning when a listed backup lacks a valid sidecar chain ID or creation timestamp, or its chain lacks a FULL base. Keep successful uploads and report the destination retention error instead of silently orphaning restores.
+- **Upstream**: Backported from [Skyfay/DBackup PR #208](https://github.com/Skyfay/DBackup/pull/208) and tracked via issue #206.
+
+### Tests
+
+- Four regression scenarios cover missing FULL sidecar, orphaned incrementals, missing creation timestamp and healthy chains; existing retention suites and repository CI validate the change.
+
+### Docker
+
+- **Image**: `ghcr.io/x1pher/dbackup:3.4.0-x1pher.11`
+- **Upstream baseline**: `Skyfay/DBackup v3.4.0`
+- **Platforms**: linux/amd64, linux/arm64
+
+
 ## v3.4.0-x1pher.10 - Mixed-case SMB Directory Attributes
 
 *Released: Oct 9, 2026*
