@@ -2,7 +2,7 @@ import { RunnerContext, DestinationContext } from "../types";
 import { RetentionService } from "@/services/backup/retention-service";
 import { FileInfo } from '@/lib/core/interfaces';
 import { isBackupFile, sidecarPathsFor, effectiveBackupTime } from '@/lib/core/backup-files';
-import { loadBackupSidecars } from './retention-sidecars';
+import { assertIncrementalRetentionSafe, loadBackupSidecars } from './retention-sidecars';
 import path from "path";
 import { logger } from "@/lib/logging/logger";
 import prisma from "@/lib/prisma";
@@ -95,6 +95,11 @@ async function applyRetentionForDestination(ctx: RunnerContext, dest: Destinatio
     // DBackup recorded when it wrote the backup. The chain id is what lets retention treat
     // an incremental chain as one indivisible unit, and the timestamp is what it buckets by.
     const sidecars = await loadBackupSidecars(dest.adapter, dest.config, files, backupFiles);
+    if (ctx.job!.backupMode === 'INCREMENTAL') {
+        // Fail closed: missing sidecar metadata or a FULL base must never
+        // result in partial-chain deletion, even after a successful upload.
+        assertIncrementalRetentionSafe(backupFiles);
+    }
 
     if (backupFiles.length > 0) {
         ctx.log(
