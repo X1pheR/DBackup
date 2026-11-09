@@ -306,6 +306,10 @@ export const SMBAdapter: StorageAdapter = {
                         items = Array.from(merged.values());
                     }
                 } catch (error: unknown) {
+                    // Upstream intentionally tolerates inaccessible child folders.
+                    // Keep root failures fatal; a partial child inventory cannot trigger
+                    // deletion of files that were never enumerated.
+                    if (currentDir !== startDir) return;
                     const safe = sanitizeSmbError(error, config.password);
                     throw new Error(`SMB list failed at '${currentDir || "."}': ${safe.message}`, { cause: safe });
                 }
