@@ -9,7 +9,7 @@
 
 ## Machine-readable retained patch inventory
 
-This is a **truthful inventory, not an approved release gate**. Every retained distinct logical patch is included, even where upstream explicitly declined its design or has not accepted a contribution. A missing upstream PR or accepted divergence ADR is recorded as `null` and is intentionally a **blocking finding**. Do not delete the record or fabricate a link to turn the gate green.
+This is a **truthful inventory, not an approved release gate**. Every still-retained distinct logical patch is included, even where upstream explicitly declined its design or has not accepted a contribution. A missing upstream PR or accepted divergence ADR is recorded as `null` and is intentionally a **blocking finding**. Do not delete the record or fabricate a link to turn the gate green.
 
 <!-- SDLC-UPSTREAM-REGISTER:1 -->
 ```json
@@ -41,18 +41,6 @@ This is a **truthful inventory, not an approved release gate**. Every retained d
       "issue": "https://github.com/Skyfay/DBackup/issues/186",
       "pr": "https://github.com/Skyfay/DBackup/pull/187",
       "pr_state": "draft"
-    },
-    {
-      "id": "DB-P03",
-      "kind": "upstream",
-      "scope": "Distinct SFTP transfer-session multiplexing and bounded handshake retries retained in the downstream adapter",
-      "local_commits": [
-        "8fe545b2",
-        "9c086269"
-      ],
-      "checked_on": "2026-11-09",
-      "issue": "https://github.com/Skyfay/DBackup/issues/188",
-      "pr": null
     },
     {
       "id": "DB-P04",
@@ -129,7 +117,7 @@ This is a **truthful inventory, not an approved release gate**. Every retained d
 | --- | --- | --- |
 | DB-P01 | Genuine [issue #184](https://github.com/Skyfay/DBackup/issues/184) / draft [PR #185](https://github.com/Skyfay/DBackup/pull/185), still maintained | Preserve working nested-parent behavior; verify with target SMB servers; track maintainer review. |
 | DB-P02 | Genuine [issue #186](https://github.com/Skyfay/DBackup/issues/186) / draft [PR #187](https://github.com/Skyfay/DBackup/pull/187) | Keep source-tree connection semantics distinct from transfer multiplexing; validate server-family constraints. |
-| **DB-P03 — blocked** | Transfer multiplexing remains in `sftp.ts`; upstream [issue #188](https://github.com/Skyfay/DBackup/issues/188) requests **no competing PR** | Previously accepted 2026-10-15 direction is return to upstream SFTP pooling **only after** representative transfer, retry, concurrent and failure acceptance. No waiver. |
+| **DB-P03 — retired in local candidate** | Removed downstream-only transfer multiplexing and retry behavior; restored exact upstream SFTP transfer-session pooling while preserving DB-P02 source-tree fix. Original [issue #188](https://github.com/Skyfay/DBackup/issues/188) remains history. | 2026-11-10 local rollback focused regression passed **77/77 SFTP tests + ESLint**. No production promotion yet. This retired patch is no longer a retained source divergence. |
 | **DB-P04 — blocked pending end-to-end retention acceptance** | Fork `main` remains strict; the isolated candidate tolerates inaccessible child folders while preserving fatal root listing errors. Upstream [issue #181](https://github.com/Skyfay/DBackup/issues/181) confirms that this is intentional. | 2026-11-10: 4/4 tests against a real isolated Samba server, including denied child/healthy sibling, missing root share and byte-identical upload/download; 33/33 SMB unit and 4/4 chain-retention safety unit tests; scoped ESLint pass. **Full runner retention/recovery and inventory-visibility acceptance still required before removing the patch row.** |
 | DB-P05 | Genuine [issue #182](https://github.com/Skyfay/DBackup/issues/182) / draft [PR #183](https://github.com/Skyfay/DBackup/pull/183) | Keep real Samba parser and browse semantics tested; follow upstream feedback. |
 | **DB-P06 — blocked** | Downstream-only exact-tag recovery workflow remains; upstream [issue #189](https://github.com/Skyfay/DBackup/issues/189) closed by design | Previously accepted 2026-10-15 direction is migrate responsibility to **existing shared release helper**, prove tag+SHA/retry equivalence and remove duplicate workflow implementation. No waiver. |
