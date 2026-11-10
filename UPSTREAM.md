@@ -71,18 +71,6 @@ This is a **truthful inventory, not an approved release gate**. Every still-reta
       "pr_state": "draft"
     },
     {
-      "id": "DB-P06",
-      "kind": "upstream",
-      "scope": "DBackup-specific exact-tag and exact-commit GitHub release recovery dispatch",
-      "local_commits": [
-        "f251b8f3",
-        "92a4a3b8"
-      ],
-      "checked_on": "2026-11-09",
-      "issue": "https://github.com/Skyfay/DBackup/issues/189",
-      "pr": null
-    },
-    {
       "id": "DB-P07",
       "kind": "divergence",
       "scope": "Fork-specific package version and distribution identity, GHCR targets and release workflow behavior",
@@ -120,7 +108,7 @@ This is a **truthful inventory, not an approved release gate**. Every still-reta
 | **DB-P03 — retired in local candidate** | Removed downstream-only transfer multiplexing and retry behavior; restored exact upstream SFTP transfer-session pooling while preserving DB-P02 source-tree fix. Original [issue #188](https://github.com/Skyfay/DBackup/issues/188) remains history. | 2026-11-10 local rollback focused regression passed **77/77 SFTP tests + ESLint**. No production promotion yet. This retired patch is no longer a retained source divergence. |
 | **DB-P04 — blocked pending end-to-end retention acceptance** | Fork `main` remains strict; the isolated candidate tolerates inaccessible child folders while preserving fatal root listing errors. Upstream [issue #181](https://github.com/Skyfay/DBackup/issues/181) confirms that this is intentional. | 2026-11-10: 4/4 tests against a real isolated Samba server, including denied child/healthy sibling, missing root share and byte-identical upload/download; 33/33 SMB unit and 4/4 chain-retention safety unit tests; scoped ESLint pass. **Full runner retention/recovery and inventory-visibility acceptance still required before removing the patch row.** |
 | DB-P05 | Genuine [issue #182](https://github.com/Skyfay/DBackup/issues/182) / draft [PR #183](https://github.com/Skyfay/DBackup/pull/183) | Keep real Samba parser and browse semantics tested; follow upstream feedback. |
-| **DB-P06 — blocked** | Downstream-only exact-tag recovery workflow remains; upstream [issue #189](https://github.com/Skyfay/DBackup/issues/189) closed by design | Previously accepted 2026-10-15 direction is migrate responsibility to **existing shared release helper**, prove tag+SHA/retry equivalence and remove duplicate workflow implementation. No waiver. |
+| **DB-P06 — retired in local candidate** | Removed separate manual exact-tag recovery dispatch; GitHub Actions native rerun preserves original GITHUB_SHA/GITHUB_REF (GitHub docs). Existing tag-push preflight still rejects mismatched commit and remains part of temporary downstream release integrity. Original upstream [issue #189](https://github.com/Skyfay/DBackup/issues/189) preserved as history. | No custom rerun helper necessary; existing native rerun is supported for up to 30 days after initial workflow run. No runtime or release activation; verify workflow contract before publication. |
 | **DB-P07 — blocked** | Temporary fork packaging and GHCR distribution while unreleased upstream-bound fixes are needed; no standalone permanent fork strategy. | Return generic release mechanics to the existing shared Hypershell release owner and keep only indispensable interim artifact identity; retire the fork distribution once equivalent immutable upstream artifacts pass source/runtime/restore acceptance. Only a genuinely lasting material product deviation would warrant a separate explicit operator decision and exact-scope ADR. Current register exception is **not approved**. |
 | DB-P08 | Genuine [issue #206](https://github.com/Skyfay/DBackup/issues/206) / open [PR #208](https://github.com/Skyfay/DBackup/pull/208) | The current fork `main` still has the earlier conservative guard in `f7a67c91`. The reworked upstream PR at `0bf62a167e2448ca7a6e9bc4d60430a80b07a5bd` passed full `pnpm validate`, but is not merged upstream or adopted in fork; perform source/adapter-chain/restore acceptance before activation. |
 
