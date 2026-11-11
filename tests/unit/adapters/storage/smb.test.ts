@@ -357,6 +357,15 @@ describe("SMBAdapter", () => {
             await expect(SMBAdapter.list(config, "Job")).rejects.toThrow("SMB connection error");
         });
 
+        it("fails source collection when a child folder cannot be enumerated", async () => {
+            mockList
+                .mockResolvedValueOnce([{ name: "unreadable", type: "D", size: 0, modifyTime: new Date() }])
+                .mockRejectedValueOnce(new Error("Permission denied on source subtree"));
+
+            await expect(SMBAdapter.listTree!(config, "Job"))
+                .rejects.toThrow("Permission denied on source subtree");
+        });
+
         it("skips inaccessible child folders but returns independently listed files", async () => {
             mockList
                 .mockResolvedValueOnce([

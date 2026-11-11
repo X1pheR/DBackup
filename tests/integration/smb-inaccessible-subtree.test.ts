@@ -28,6 +28,10 @@ describe.skipIf(!isIsolatedFixture)("SMB inaccessible subtree: upstream-tolerant
         expect(files.every((entry) => entry.size > 0)).toBe(true);
     });
 
+    it("rejects incomplete SMB source trees instead of producing a successful partial backup", async () => {
+        await expect(SMBAdapter.listTree!(config, "")).rejects.toThrow();
+    });
+
     it("fails on a missing root share rather than returning an empty inventory", async () => {
         const bad = { ...config, address: address!.replace(/\/[^/]+$/, "/missing-db-p04-share") };
         expect(bad.address).not.toBe(address);
