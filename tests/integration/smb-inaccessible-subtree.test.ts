@@ -23,7 +23,7 @@ describe.skipIf(!isIsolatedFixture)("SMB inaccessible subtree: upstream-tolerant
     });
 
     it("enumerates healthy siblings without exposing an inaccessible subtree", async () => {
-        const files = await SMBAdapter.list(config);
+        const files = await SMBAdapter.list(config, "");
         expect(files.map((entry) => entry.path).sort()).toEqual(["healthy/keep.sql", "root.sql"]);
         expect(files.every((entry) => entry.size > 0)).toBe(true);
     });
@@ -31,7 +31,7 @@ describe.skipIf(!isIsolatedFixture)("SMB inaccessible subtree: upstream-tolerant
     it("fails on a missing root share rather than returning an empty inventory", async () => {
         const bad = { ...config, address: address!.replace(/\/[^/]+$/, "/missing-db-p04-share") };
         expect(bad.address).not.toBe(address);
-        await expect(SMBAdapter.list(bad)).rejects.toThrow();
+        await expect(SMBAdapter.list(bad, "")).rejects.toThrow();
     });
 
     it("downloads the healthy sibling without touching the inaccessible subtree", async () => {
