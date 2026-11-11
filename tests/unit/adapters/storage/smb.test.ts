@@ -357,6 +357,16 @@ describe("SMBAdapter", () => {
             await expect(SMBAdapter.list(config, "Job")).rejects.toThrow("SMB connection error");
         });
 
+        it("refuses a cancelled SMB source listing instead of returning apparently complete data", async () => {
+            const controller = new AbortController();
+            mockList.mockImplementationOnce(async () => {
+                controller.abort();
+                return [{ name: "backup.sql", type: "F", size: 512, modifyTime: new Date() }];
+            });
+            await expect(SMBAdapter.listTree!(config, "Job", { signal: controller.signal }))
+                .rejects.toThrow();
+        });
+
         it("fails source collection when a child folder cannot be enumerated", async () => {
             mockList
                 .mockResolvedValueOnce([{ name: "unreadable", type: "D", size: 0, modifyTime: new Date() }])

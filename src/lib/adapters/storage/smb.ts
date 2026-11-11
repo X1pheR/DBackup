@@ -1,4 +1,4 @@
-import { StorageAdapter, StorageSession, FileInfo, DirectoryBrowseEntry, SnapshotHandle } from "@/lib/core/interfaces";
+import { StorageAdapter, StorageSession, FileInfo, DirectoryBrowseEntry, SnapshotHandle, ListTreeOptions } from "@/lib/core/interfaces";
 import { probeSnapshotSupport, createShadowCopy, releaseShadowCopy, findOrphanedShadowCopies } from "./smb-vss";
 import { SMBSchema } from "@/lib/adapters/definitions";
 import SambaClient from "samba-client";
@@ -355,8 +355,11 @@ export const SMBAdapter: StorageAdapter = {
         return listSmbFiles(config, dir, false);
     },
 
-    async listTree(config: SMBConfig, dir: string = "") {
-        return { files: await listSmbFiles(config, dir, true), pruned: [] };
+    async listTree(config: SMBConfig, dir: string = "", options?: ListTreeOptions) {
+        options?.signal?.throwIfAborted();
+        const files = await listSmbFiles(config, dir, true);
+        options?.signal?.throwIfAborted();
+        return { files, pruned: [] };
     },
 
     async delete(config: SMBConfig, remotePath: string): Promise<boolean> {
