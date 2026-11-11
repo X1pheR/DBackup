@@ -8,6 +8,7 @@ import {
     PrunedDirectory,
 } from "@/lib/core/interfaces";
 import { normalizeSshPrivateKey } from "@/lib/transport/pkcs8-compat";
+import { createConnectionPool } from "@/lib/adapters/storage/common/connection-pool";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { canPruneDirectory } from "@/lib/exclude-patterns";
 import { SFTPSchema } from "@/lib/adapters/definitions";
@@ -166,6 +167,12 @@ export async function endSftpClient(sftp: Client): Promise<void> {
         const raw = (sftp as unknown as { client?: { destroy?: () => void } }).client;
         try { raw?.destroy?.(); } catch { /* already gone */ }
     }
+}
+
+/** A pooled connection plus whether it is still usable, kept together so the pool can check it. */
+interface PooledClient {
+    client: Client;
+    alive: boolean;
 }
 
 /** How many sibling names to name in a diagnostic - enough to recognise the place, short enough to read. */
@@ -630,10 +637,25 @@ export const SFTPAdapter: StorageAdapter = {
     async openSession(config: SFTPConfig, onLog?, options?): Promise<StorageSession> {
         // PERF-SFTP-MULTIPLEX
         //
-        // Source sessions deliberately reuse one SSH/SFTP connection. SFTP multiplexes requests
-        // by request id, and fastGet/fastPut already keep many chunks in flight over one channel.
-        // Keeping the SSH connection count at one avoids a parallel handshake storm while retaining
-        // intra-file transfer concurrency. A transient handshake timeout/reset gets one retry only.
+        // One connection per transfer in flight. This is the reason the concurrency ceiling is
+        // 8 (see `transferConcurrency` for sftp in `src/lib/adapters/definitions/index.ts`), and
+        // that ceiling is self-imposed rather than protocol-imposed: SFTP multiplexes by request
+        // id - ssh2 tracks them in `this._requests[reqid]` - so a single connection can carry
+        // any number of concurrent operations. `fastGet` already relies on this, issuing 64
+        // parallel reads over one channel. N parallel *files* would need no extra login either.
+        //
+        // Why it matters: a small file costs four round trips (OPEN, FSTAT, READ, CLOSE), so a
+        // source of many small files is bound by latency, not bandwidth. Measured over a ~40 ms
+        // link, 766 files of ~23 KB took 88s at concurrency 4 and 45s at 8 - linear, with the
+        // link nowhere near saturated. Multiplexing over one connection would lift the ceiling
+        // entirely, up to what the server's own sftp-server process can chew through.
+        //
+        // Two cheaper wins live nearby, in `performSftpDownload`: `fastGet` accepts a
+        // `fileSize` option and skips its FSTAT when given one, and the size is already known
+        // from the listing - one of four round trips, for one argument.
+        //
+        // Not done here on purpose: it inverts the pooling model below and belongs in its own
+        // change, measured on its own.
         //
         // Liveness is tracked by the connection telling us it dropped, rather than by inspecting
         // the client afterwards: the default has to be "usable", so that a future library change
@@ -641,56 +663,52 @@ export const SFTPAdapter: StorageAdapter = {
         // Liveness is tracked by the connection telling us it dropped, rather than by inspecting
         // the client afterwards: the default has to be "usable", so that a future library change
         // cannot silently turn pooling off by making every connection look dead.
-        const requestedConcurrency = Math.max(1, options?.concurrency ?? 1);
-        let alive = true;
-        let closed = false;
-        const client = await connectSFTPForSource(
-            config,
-            "transfer session",
-            () => { alive = false; }
-        );
-        const activeClient = (): Client => {
-            if (closed || !alive) throw new Error("SFTP source connection is no longer available");
-            return client;
-        };
+        const pool = createConnectionPool<PooledClient>({
+            limit: options?.concurrency ?? 1,
+            connect: async () => {
+                const entry: PooledClient = { client: null as unknown as Client, alive: true };
+                entry.client = await connectSFTP(config, () => { entry.alive = false; });
+                return entry;
+            },
+            disconnect: async (entry) => { await endSftpClient(entry.client); },
+            isAlive: (entry) => entry.alive,
+        });
+
+        // Opened right away rather than on the first transfer, so bad credentials or an
+        // unreachable host fail here - where the caller can report one clear error - instead of
+        // separately for every file. The remaining connections are opened only if the transfers
+        // actually run in parallel.
+        try {
+            await pool.withConnection(async () => undefined);
+        } catch (error) {
+            await pool.close();
+            throw error;
+        }
 
         // Announced once for the session rather than once per connection. How many sockets a
         // pool ends up opening is an implementation detail, and printing a line for each buried
         // the run's actual events under a wall of identical "Connected to" entries.
         if (onLog) {
+            const limit = options?.concurrency ?? 1;
             onLog(
                 `Connected to SFTP ${config.host}:${config.port}`
-                + (requestedConcurrency > 1
-                    ? ` (single reusable connection; requested concurrency ${requestedConcurrency})`
-                    : ''),
+                + (limit > 1 ? ` (up to ${limit} parallel transfers)` : ''),
                 'info',
                 'storage'
             );
         }
 
-        // Shared across every multiplexed operation: which directories exist is a property of
+        // Shared across the pool, not per connection: which directories exist is a property of
         // the server, so one file's mkdir spares every other file the same check.
         const dirCache = new Set<string>();
 
         return {
             upload: (localPath, remotePath, onProgress, uploadLog) =>
-                performSftpUpload(
-                    activeClient(),
-                    config,
-                    localPath,
-                    remotePath,
-                    onProgress,
-                    uploadLog ?? onLog,
-                    dirCache
-                ),
+                pool.withConnection(({ client }) =>
+                    performSftpUpload(client, config, localPath, remotePath, onProgress, uploadLog ?? onLog, dirCache)),
             download: (remotePath, localPath, onProgress) =>
-                performSftpDownload(activeClient(), config, remotePath, localPath, onProgress),
-            close: async () => {
-                if (closed) return;
-                closed = true;
-                alive = false;
-                await endSftpClient(client);
-            },
+                pool.withConnection(({ client }) => performSftpDownload(client, config, remotePath, localPath, onProgress)),
+            close: () => pool.close(),
         };
     },
 

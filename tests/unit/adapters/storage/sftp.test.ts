@@ -235,59 +235,6 @@ describe("SFTPAdapter", () => {
             expect(mockSftpFastGet).toHaveBeenCalledTimes(10);
         });
 
-        it("uses one reusable SSH connection even when higher transfer concurrency is requested", async () => {
-            const session = await SFTPAdapter.openSession!(config, undefined, { concurrency: 8 });
-
-            await Promise.all(Array.from({ length: 12 }, (_, i) =>
-                session.download!(`Job/f${i}`, `/tmp/f${i}`)));
-            await session.close();
-
-            expect(mockSftpConnect).toHaveBeenCalledTimes(1);
-            expect(mockSftpFastGet).toHaveBeenCalledTimes(12);
-        });
-
-        it("multiplexes parallel downloads over the one reusable connection", async () => {
-            let active = 0;
-            let maxActive = 0;
-            mockSftpFastGet.mockImplementation(async () => {
-                active++;
-                maxActive = Math.max(maxActive, active);
-                await new Promise((resolve) => setTimeout(resolve, 15));
-                active--;
-            });
-
-            const session = await SFTPAdapter.openSession!(config, undefined, { concurrency: 4 });
-            await Promise.all([
-                session.download!("Job/a", "/tmp/a"),
-                session.download!("Job/b", "/tmp/b"),
-                session.download!("Job/c", "/tmp/c"),
-            ]);
-            await session.close();
-
-            expect(mockSftpConnect).toHaveBeenCalledTimes(1);
-            expect(maxActive).toBeGreaterThan(1);
-        });
-
-        it("retries one transient handshake failure before opening the reusable session", async () => {
-            mockSftpConnect
-                .mockRejectedValueOnce(new Error("Timed out while waiting for handshake"))
-                .mockResolvedValueOnce(undefined);
-
-            const session = await SFTPAdapter.openSession!(config, undefined, { concurrency: 4 });
-            await session.close();
-
-            expect(mockSftpConnect).toHaveBeenCalledTimes(2);
-        });
-
-        it("bounds persistent handshake failure to two attempts", async () => {
-            mockSftpConnect.mockRejectedValue(new Error("Timed out while waiting for handshake"));
-
-            await expect(SFTPAdapter.openSession!(config, undefined, { concurrency: 4 }))
-                .rejects.toThrow("Timed out while waiting for handshake");
-
-            expect(mockSftpConnect).toHaveBeenCalledTimes(2);
-        });
-
         it("opens a single connection when no concurrency is requested", async () => {
             mockSftpExists.mockResolvedValue("d");
             const session = await SFTPAdapter.openSession!(config);

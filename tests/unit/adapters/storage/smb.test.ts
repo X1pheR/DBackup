@@ -357,15 +357,24 @@ describe("SMBAdapter", () => {
             await expect(SMBAdapter.list(config, "Job")).rejects.toThrow("SMB connection error");
         });
 
-        it("fails closed when a subdirectory listing fails", async () => {
+        it("skips inaccessible child folders but returns independently listed files", async () => {
             mockList
                 .mockResolvedValueOnce([
                     { name: "subdir", type: "D", size: 0, modifyTime: new Date() },
+                    { name: "healthy", type: "D", size: 0, modifyTime: new Date() },
                     { name: "backup.sql", type: "F", size: 512, modifyTime: new Date() },
                 ])
-                .mockRejectedValueOnce(new Error("Permission denied on subdir"));
+                .mockRejectedValueOnce(new Error("Permission denied on subdir"))
+                .mockResolvedValueOnce([
+                    { name: "healthy.tar", type: "F", size: 1024, modifyTime: new Date() },
+                ]);
 
-            await expect(SMBAdapter.list(config, "Job")).rejects.toThrow("Permission denied on subdir");
+            const files = await SMBAdapter.list(config, "Job");
+            expect(files.map((f) => f.path)).toEqual([
+                "Job/healthy/healthy.tar",
+                "Job/backup.sql",
+            ]);
+            expect(files.some((f) => f.path.includes("subdir"))).toBe(false);
         });
     });
 

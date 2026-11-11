@@ -166,6 +166,83 @@ describe('stepRetention', () => {
         expect(ctx.log).toHaveBeenCalledWith(expect.stringContaining('Keeping 1, Deleting 1'));
     });
 
+    it('does not delete members of a chain in an inaccessible SMB folder', async () => {
+        // The SMB adapter skips the entire inaccessible child folder. DBackup stores
+        // each incremental chain in its own folder, so omitted chains are never
+        // candidates for deletion while complete, visible chains remain manageable.
+        const { RetentionService } = await import('@/services/backup/retention-service');
+        const actual = await vi.importActual<typeof import('@/services/backup/retention-service')>(
+            '@/services/backup/retention-service',
+        );
+        vi.mocked(RetentionService.calculateRetention).mockImplementation(
+            (files, policy, timezone) => actual.RetentionService.calculateRetention(files, policy, timezone),
+        );
+
+        const file = (folder: string, chain: string, type: string, timestamp: string) => {
+            const name = `Job_${timestamp.slice(0, 10)}_${type}.tar`;
+            return {
+                name,
+                path: `/Test Job/${folder}/${name}`,
+                size: 1024,
+                lastModified: new Date(timestamp),
+                chain,
+                timestamp,
+            };
+        };
+        const old = [
+            file('chain-old', 'old', 'full-000', '2026-10-01T12:00:00Z'),
+            file('chain-old', 'old', 'inc-001', '2026-10-02T12:00:00Z'),
+        ];
+        const current = [
+            file('chain-current', 'current', 'full-000', '2026-11-01T12:00:00Z'),
+            file('chain-current', 'current', 'inc-001', '2026-11-02T12:00:00Z'),
+        ];
+        const inaccessible = [
+            file('chain-inaccessible', 'inaccessible', 'full-000', '2026-11-04T12:00:00Z'),
+            file('chain-inaccessible', 'inaccessible', 'inc-001', '2026-11-05T12:00:00Z'),
+        ];
+        const listing = [...old, ...current].map(({ chain: _chain, timestamp: _timestamp, ...entry }) => entry);
+        const metadata = [...old, ...current, ...inaccessible];
+        const dest = makeDestination({
+            configName: 'SMB USB',
+            adapterId: 'smb',
+            retention: { mode: 'SIMPLE', simple: { keepCount: 1 } },
+            uploadResult: { success: true, path: current[1].path },
+            adapter: {
+                list: vi.fn().mockResolvedValue(listing),
+                read: vi.fn().mockImplementation(async (_config, sidecar: string) => {
+                    const found = metadata.find((entry) => sidecar === entry.path + '.meta.json');
+                    return found ? JSON.stringify({
+                        chain: { id: found.chain },
+                        timestamp: found.timestamp,
+                    }) : null;
+                }),
+                delete: vi.fn().mockResolvedValue(true),
+            } as any,
+        });
+        const ctx = makeCtx({
+            job: { id: 'job-1', name: 'Test Job', backupMode: 'INCREMENTAL' } as any,
+            chain: { chainDir: 'chain-current' } as any,
+            destinations: [dest],
+        });
+
+        await stepRetention(ctx);
+
+        const deleted = vi.mocked(dest.adapter.delete!).mock.calls.map(([, remotePath]) => remotePath);
+        expect(deleted.filter((name) => name.endsWith('.tar')).sort())
+            .toEqual(old.map((entry) => entry.path).sort());
+        expect(deleted.every((name) => !name.includes('chain-current'))).toBe(true);
+        expect(deleted.every((name) => !name.includes('chain-inaccessible'))).toBe(true);
+        expect(RetentionService.calculateRetention).toHaveBeenCalledWith(
+            expect.arrayContaining([
+                expect.objectContaining({ path: current[0].path, chainId: 'current' }),
+                expect.objectContaining({ path: current[1].path, chainId: 'current' }),
+            ]),
+            expect.anything(),
+            expect.any(String),
+        );
+    });
+
     it('logs the selected retention template name when applying policy', async () => {
         const { RetentionService } = await import('@/services/backup/retention-service');
         (RetentionService.calculateRetention as ReturnType<typeof vi.fn>).mockReturnValue({ keep: [], delete: [], keptForChain: [] });
