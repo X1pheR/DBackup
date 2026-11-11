@@ -5,7 +5,7 @@
 - **Fork baseline:** `v3.4.0`
 - **Installed production release:** `v3.4.0-x1pher.10` (do not infer that this source candidate is deployed)
 - **Candidate source baseline:** downstream `main` at `90438a74360ff202f91c6ab0a4b8877a5568a488`
-- **Review date:** 2026-11-09
+- **Review date:** 2026-11-11
 
 ## Machine-readable retained patch inventory
 
@@ -85,10 +85,10 @@ This is a **truthful inventory, not an approved release gate**. Every still-reta
       "local_commits": [
         "f7a67c91"
       ],
-      "checked_on": "2026-11-09",
+      "checked_on": "2026-11-11",
       "issue": "https://github.com/Skyfay/DBackup/issues/206",
       "pr": "https://github.com/Skyfay/DBackup/pull/208",
-      "pr_state": "open"
+      "pr_state": "merged"
     }
   ]
 }
@@ -105,7 +105,7 @@ This is a **truthful inventory, not an approved release gate**. Every still-reta
 | DB-P05 | Genuine [issue #182](https://github.com/Skyfay/DBackup/issues/182) / draft [PR #183](https://github.com/Skyfay/DBackup/pull/183) | Keep real Samba parser and browse semantics tested; follow upstream feedback. |
 | **DB-P06 — retired in local candidate** | Removed separate manual exact-tag recovery dispatch; GitHub Actions native rerun preserves original GITHUB_SHA/GITHUB_REF (GitHub docs). Existing tag-push preflight still rejects mismatched commit and remains part of temporary downstream release integrity. Original upstream [issue #189](https://github.com/Skyfay/DBackup/issues/189) preserved as history. | No custom rerun helper necessary; existing native rerun is supported for up to 30 days after initial workflow run. No runtime or release activation; verify workflow contract before publication. |
 | **DB-P07 — temporary distribution** | X1pheR version suffix, exact GHCR tags and release workflow exist only to ship needed upstream-bound patches DB-P01/02/05/08 before an equivalent official release. This is release identity, not intentional product divergence. | Preserve current exact tag/SHA integrity and existing release tests. After upstream releases the needed fixes, verify source, backup/restore, rollback and deployment consumers, then retire fork image/version/workflow. No general patch or product-divergence waiver. |
-| DB-P08 | Genuine [issue #206](https://github.com/Skyfay/DBackup/issues/206) / open [PR #208](https://github.com/Skyfay/DBackup/pull/208) | The current fork `main` still has the earlier conservative guard in `f7a67c91`. The reworked upstream PR at `0bf62a167e2448ca7a6e9bc4d60430a80b07a5bd` passed full `pnpm validate`, but is not merged upstream or adopted in fork; perform source/adapter-chain/restore acceptance before activation. |
+| DB-P08 | Genuine [issue #206](https://github.com/Skyfay/DBackup/issues/206) / [PR #208](https://github.com/Skyfay/DBackup/pull/208), merged into upstream `dev` on 2026-11-10 | Fork candidate still ships its earlier conservative fail-closed guard (`f7a67c91`); the reworked upstream PR head `0bf62a167e2448ca7a6e9bc4d60430a80b07a5bd` passed full `pnpm validate`. No suitable official release or 3.4.x backport is verified. The newer folder-scoped implementation is **not** part of this candidate; downstream release requires its own backup/restore acceptance. |
 
 ### DB-P04 isolated acceptance checkpoint — 2026-11-10
 
