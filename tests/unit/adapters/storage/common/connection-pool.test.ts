@@ -193,6 +193,29 @@ describe("createConnectionPool", () => {
         await expect(second).resolves.toBe("b");
     });
 
+    it("disposes a connection that finishes handshaking after cancellation", async () => {
+        let finishConnect: (connection: FakeConnection) => void = () => { };
+        const connecting = new Promise<FakeConnection>((resolve) => { finishConnect = resolve; });
+        const disconnect = vi.fn(async (c: FakeConnection) => { c.alive = false; });
+        const work = vi.fn(async () => undefined);
+        const pool = createConnectionPool<FakeConnection>({
+            limit: 1,
+            connect: () => connecting,
+            disconnect,
+            isAlive: (c) => c.alive,
+        });
+
+        const pending = pool.withConnection(work);
+        const closing = pool.close();
+        finishConnect({ id: 1, alive: true });
+
+        await expect(pending).rejects.toThrow(/closed/i);
+        await closing;
+        expect(work).not.toHaveBeenCalled();
+        expect(disconnect).toHaveBeenCalledTimes(1);
+        expect(pool.openCount()).toBe(0);
+    });
+
     it("refuses new work once closed", async () => {
         const { pool } = makePool(2);
         await pool.close();

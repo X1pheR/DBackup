@@ -70,6 +70,12 @@ export function createConnectionPool<T>({
                 opening++;
                 try {
                     const created = await connect();
+                    // close() cannot see handshakes still in flight. Never hand a newly
+                    // connected socket to cancelled work or leave it outside the live set.
+                    if (closed) {
+                        await disconnect(created).catch(() => { });
+                        throw new Error("The connection pool has been closed.");
+                    }
                     live.add(created);
                     return created;
                 } finally {
@@ -104,6 +110,7 @@ export function createConnectionPool<T>({
         async withConnection<R>(fn: (connection: T) => Promise<R>): Promise<R> {
             const connection = await acquire();
             try {
+                if (closed) throw new Error("The connection pool has been closed.");
                 return await fn(connection);
             } finally {
                 release(connection);
