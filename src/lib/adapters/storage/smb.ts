@@ -1,4 +1,4 @@
-import { StorageAdapter, StorageSession, FileInfo, DirectoryBrowseEntry, SnapshotHandle, ListTreeOptions } from "@/lib/core/interfaces";
+import { StorageAdapter, StorageSession, FileInfo, DirectoryBrowseEntry, SnapshotHandle } from "@/lib/core/interfaces";
 import { probeSnapshotSupport, createShadowCopy, releaseShadowCopy, findOrphanedShadowCopies } from "./smb-vss";
 import { SMBSchema } from "@/lib/adapters/definitions";
 import SambaClient from "samba-client";
@@ -184,85 +184,6 @@ async function performSmbUpload(
     }
 }
 
-async function listSmbFiles(config: SMBConfig, dir: string, strictSource: boolean): Promise<FileInfo[]> {
-    try {
-
-        const normalize = (p: string) => p.replace(/\\/g, "/");
-
-        const prefix = config.pathPrefix ? normalize(config.pathPrefix) : "";
-        const startDir = prefix
-            ? prefix + (dir ? "/" + normalize(dir) : "")
-            : (dir || "");
-
-        const files: FileInfo[] = [];
-
-        const walk = async (currentDir: string) => {
-            let items: Array<{ name: string; type: string; size: number; modifyTime: Date }>;
-            try {
-                // smbclient's "dir" command requires a glob pattern to list directory contents.
-                // "dir folder" matches the entry itself, "dir folder/*" lists its contents.
-                // For root listing (empty currentDir), "*" lists everything in the share root.
-                // Use the SMB client's -D directory option to scope the listing.
-                // The library already quotes the dir() pattern; including the whole
-                // parent path in that pattern can misparse directories with spaces.
-                const client = createClient(config, currentDir);
-                items = await client.list("*");
-                // The library may return dot entries and short sidecars while dropping
-                // long archive filenames. Merge raw rows even for non-empty listings.
-                const raw = await client.dir("*");
-                const rawText = typeof raw === "string" ? raw : raw.toString("utf8");
-                const recovered = parseRawSmbDirectory(rawText);
-                if (recovered.length > 0) {
-                    const merged = new Map(items.map((item) => [item.name, item]));
-                    for (const item of recovered) merged.set(item.name, item);
-                    items = Array.from(merged.values());
-                }
-            } catch (error: unknown) {
-                // Retention inventory may omit inaccessible child folders: files not listed
-                // cannot become deletion candidates. Source collection instead fails
-                // closed so a missing subtree is not reported as a successful backup.
-                if (!strictSource && currentDir !== startDir) return;
-                const safe = sanitizeSmbError(error, config.password);
-                throw new Error(`SMB list failed at '${currentDir || "."}': ${safe.message}`, { cause: safe });
-            }
-
-            for (const item of items) {
-                // Skip . and .. entries
-                if (item.name === "." || item.name === "..") continue;
-
-                const fullPath = currentDir
-                    ? normalize(currentDir) + "/" + item.name
-                    : item.name;
-
-                if (item.type.includes("D")) {
-                    await walk(fullPath);
-                } else {
-                    // Calculate relative path (strip prefix)
-                    let relativePath = normalize(fullPath);
-                    if (prefix && relativePath.startsWith(prefix)) {
-                        relativePath = relativePath.substring(prefix.length);
-                    }
-                    if (relativePath.startsWith("/")) relativePath = relativePath.substring(1);
-
-                    files.push({
-                        name: item.name,
-                        path: relativePath,
-                        size: item.size,
-                        lastModified: item.modifyTime,
-                    });
-                }
-            }
-        };
-
-        await walk(startDir);
-        return files;
-    } catch (error: unknown) {
-        const safe = sanitizeSmbError(error, config.password);
-        log.error("SMB list failed", { address: config.address, dir }, wrapError(safe));
-        throw safe;
-    }
-}
-
 export const SMBAdapter: StorageAdapter = {
     id: "smb",
     type: "storage",
@@ -352,14 +273,82 @@ export const SMBAdapter: StorageAdapter = {
     },
 
     async list(config: SMBConfig, dir: string = ""): Promise<FileInfo[]> {
-        return listSmbFiles(config, dir, false);
-    },
+        try {
 
-    async listTree(config: SMBConfig, dir: string = "", options?: ListTreeOptions) {
-        options?.signal?.throwIfAborted();
-        const files = await listSmbFiles(config, dir, true);
-        options?.signal?.throwIfAborted();
-        return { files, pruned: [] };
+            const normalize = (p: string) => p.replace(/\\/g, "/");
+
+            const prefix = config.pathPrefix ? normalize(config.pathPrefix) : "";
+            const startDir = prefix
+                ? prefix + (dir ? "/" + normalize(dir) : "")
+                : (dir || "");
+
+            const files: FileInfo[] = [];
+
+            const walk = async (currentDir: string) => {
+                let items: Array<{ name: string; type: string; size: number; modifyTime: Date }>;
+                try {
+                    // smbclient's "dir" command requires a glob pattern to list directory contents.
+                    // "dir folder" matches the entry itself, "dir folder/*" lists its contents.
+                    // For root listing (empty currentDir), "*" lists everything in the share root.
+                    // Use the SMB client's -D directory option to scope the listing.
+                    // The library already quotes the dir() pattern; including the whole
+                    // parent path in that pattern can misparse directories with spaces.
+                    const client = createClient(config, currentDir);
+                    items = await client.list("*");
+                    // The library may return dot entries and short sidecars while dropping
+                    // long archive filenames. Merge raw rows even for non-empty listings.
+                    const raw = await client.dir("*");
+                    const rawText = typeof raw === "string" ? raw : raw.toString("utf8");
+                    const recovered = parseRawSmbDirectory(rawText);
+                    if (recovered.length > 0) {
+                        const merged = new Map(items.map((item) => [item.name, item]));
+                        for (const item of recovered) merged.set(item.name, item);
+                        items = Array.from(merged.values());
+                    }
+                } catch (error: unknown) {
+                    // Upstream intentionally tolerates inaccessible child folders.
+                    // Keep root failures fatal; a partial child inventory cannot trigger
+                    // deletion of files that were never enumerated.
+                    if (currentDir !== startDir) return;
+                    const safe = sanitizeSmbError(error, config.password);
+                    throw new Error(`SMB list failed at '${currentDir || "."}': ${safe.message}`, { cause: safe });
+                }
+
+                for (const item of items) {
+                    // Skip . and .. entries
+                    if (item.name === "." || item.name === "..") continue;
+
+                    const fullPath = currentDir
+                        ? normalize(currentDir) + "/" + item.name
+                        : item.name;
+
+                    if (item.type.includes("D")) {
+                        await walk(fullPath);
+                    } else {
+                        // Calculate relative path (strip prefix)
+                        let relativePath = normalize(fullPath);
+                        if (prefix && relativePath.startsWith(prefix)) {
+                            relativePath = relativePath.substring(prefix.length);
+                        }
+                        if (relativePath.startsWith("/")) relativePath = relativePath.substring(1);
+
+                        files.push({
+                            name: item.name,
+                            path: relativePath,
+                            size: item.size,
+                            lastModified: item.modifyTime,
+                        });
+                    }
+                }
+            };
+
+            await walk(startDir);
+            return files;
+        } catch (error: unknown) {
+            const safe = sanitizeSmbError(error, config.password);
+            log.error("SMB list failed", { address: config.address, dir }, wrapError(safe));
+            throw safe;
+        }
     },
 
     async delete(config: SMBConfig, remotePath: string): Promise<boolean> {

@@ -89,20 +89,6 @@ This is a **truthful inventory, not an approved release gate**. Every still-reta
       "issue": "https://github.com/Skyfay/DBackup/issues/206",
       "pr": "https://github.com/Skyfay/DBackup/pull/208",
       "pr_state": "merged"
-    },
-    {
-      "id": "DB-P09",
-      "kind": "upstream",
-      "scope": "Fail-closed SMB source-directory collection while retaining tolerant destination inventory",
-      "local_commits": ["8cef2133"],
-      "checked_on": "2026-11-11"
-    },
-    {
-      "id": "DB-P10",
-      "kind": "upstream",
-      "scope": "Dispose pooled SFTP connections completing after backup cancellation",
-      "local_commits": ["90041f93"],
-      "checked_on": "2026-11-11"
     }
   ]
 }
@@ -120,8 +106,6 @@ This is a **truthful inventory, not an approved release gate**. Every still-reta
 | **DB-P06 — retired in local candidate** | Removed separate manual exact-tag recovery dispatch; GitHub Actions native rerun preserves original GITHUB_SHA/GITHUB_REF (GitHub docs). Existing tag-push preflight still rejects mismatched commit and remains part of temporary downstream release integrity. Original upstream [issue #189](https://github.com/Skyfay/DBackup/issues/189) preserved as history. | No custom rerun helper necessary; existing native rerun is supported for up to 30 days after initial workflow run. No runtime or release activation; verify workflow contract before publication. |
 | **DB-P07 — temporary distribution** | X1pheR version suffix, exact GHCR tags and release workflow exist only to ship needed upstream-bound patches DB-P01/02/05/08 before an equivalent official release. This is release identity, not intentional product divergence. | Preserve current exact tag/SHA integrity and existing release tests. After upstream releases the needed fixes, verify source, backup/restore, rollback and deployment consumers, then retire fork image/version/workflow. No general patch or product-divergence waiver. |
 | DB-P08 | Genuine [issue #206](https://github.com/Skyfay/DBackup/issues/206) / [PR #208](https://github.com/Skyfay/DBackup/pull/208), merged into upstream `dev` on 2026-11-10 | Fork candidate still ships its earlier conservative fail-closed guard (`f7a67c91`); the reworked upstream PR head `0bf62a167e2448ca7a6e9bc4d60430a80b07a5bd` passed full `pnpm validate`. No suitable official release or 3.4.x backport is verified. The newer folder-scoped implementation is **not** part of this candidate; downstream release requires its own backup/restore acceptance. |
-| **DB-P09 — candidate, NOT release-conformant** | SMB source-collection completeness safeguard added in PR #23 review (`8cef2133`), distinct from retired destination-strict DB-P04. Upstream [issue #181](https://github.com/Skyfay/DBackup/issues/181) was closed with deliberate cross-adapter tolerant-listing policy. | Requires an authentic upstream issue plus linked, upstream-compatible PR or an expressly approved exact-scope divergence before inclusion in a downstream release. New strict-source tests 34/34 SMB units pass; real Samba validation of this new behavior was explicitly tool-safety-refused (OA-225), not passed. |
-| **DB-P10 — candidate, NOT release-conformant** | Generic pooled-client cancellation/handshake race repair (`90041f93`) from PR #23 review, related to but separate from DB-P02's SFTP source-tree change. | Requires an upstream issue plus linked PR or applicable accepted scope-matching disposition. Pool regression 14/14 and SFTP 77/77 pass using existing local test dependencies; no new official upstream submission yet. |
 
 ### DB-P04 isolated acceptance checkpoint — 2026-11-10
 
